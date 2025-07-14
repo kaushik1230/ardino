@@ -73,8 +73,14 @@ void setup() {
   Serial.println("WiFi connected!");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
   Serial.print("MAC Address: ");
-  Serial.println(WiFi.macAddress());
+  for (int i = 0; i < 6; i++) {
+    Serial.print(mac[i], HEX);
+    if (i < 5) Serial.print(":");
+  }
+  Serial.println();
   
   // Start web server
   server.begin();
@@ -199,7 +205,11 @@ void handleStatusRequest(WiFiClient& client) {
   doc["relay1_active"] = (digitalRead(RELAY1_PIN) == RELAY_ACTIVE);
   doc["relay2_active"] = (digitalRead(RELAY2_PIN) == RELAY_ACTIVE);
   doc["ip_address"] = WiFi.localIP().toString();
-  doc["mac_address"] = WiFi.macAddress();
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[18];
+  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  doc["mac_address"] = macStr;
   doc["uptime"] = millis();
   
   String response;
@@ -248,7 +258,8 @@ void handleCommandRequest(WiFiClient& client, String method, String body) {
         int end = body.indexOf(",", start);
         if (end == -1) end = body.indexOf("}", start);
         if (end != -1) {
-          String cmdStr = body.substring(start, end).trim();
+          String cmdStr = body.substring(start, end);
+          cmdStr.trim();
           command = cmdStr.toInt();
           Serial.print("Manually extracted command: ");
           Serial.println(command);
@@ -308,7 +319,11 @@ void handleRootRequest(WiFiClient& client) {
   client.println("<h1>Arduino Uno R4 WiFi Motor Controller</h1>");
   client.println("<p>This Arduino is running a motor control web server.</p>");
   client.println("<p><strong>IP Address:</strong> " + WiFi.localIP().toString() + "</p>");
-  client.println("<p><strong>MAC Address:</strong> " + WiFi.macAddress() + "</p>");
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[18];
+  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  client.println("<p><strong>MAC Address:</strong> " + String(macStr) + "</p>");
   client.println("<p><strong>Uptime:</strong> " + String(millis()) + " ms</p>");
   client.println("<p><strong>Available endpoints:</strong></p>");
   client.println("<ul>");
