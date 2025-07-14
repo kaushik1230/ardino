@@ -127,37 +127,40 @@ void loop() {
             break;
           }
         } else {
-          if (c == '\n' && currentLineIsBlank) {
-            // End of headers, check if this is a POST request
-            if (isPostRequest && contentLength > 0) {
-              readingBody = true;
-            } else {
-              break;
+                      if (c == '\n' && currentLineIsBlank) {
+              // End of headers, check if this is a POST request
+              if (isPostRequest && contentLength > 0) {
+                readingBody = true;
+              } else {
+                break;
+              }
             }
-          }
-          
-          if (c == '\n') {
-            // Starting a new line
-            if (currentLine.length() > 0) {
-              // Parse request line
-              if (requestMethod == "") {
-                int firstSpace = currentLine.indexOf(' ');
-                int secondSpace = currentLine.indexOf(' ', firstSpace + 1);
-                if (firstSpace > 0 && secondSpace > firstSpace) {
-                  requestMethod = currentLine.substring(0, firstSpace);
-                  requestPath = currentLine.substring(firstSpace + 1, secondSpace);
-                  Serial.print("Request: ");
-                  Serial.print(requestMethod);
-                  Serial.print(" ");
-                  Serial.println(requestPath);
+            
+            if (c == '\n') {
+              // Starting a new line
+              if (currentLine.length() > 0) {
+                // Parse request line
+                if (requestMethod == "") {
+                  int firstSpace = currentLine.indexOf(' ');
+                  int secondSpace = currentLine.indexOf(' ', firstSpace + 1);
+                  if (firstSpace > 0 && secondSpace > firstSpace) {
+                    requestMethod = currentLine.substring(0, firstSpace);
+                    requestPath = currentLine.substring(firstSpace + 1, secondSpace);
+                    isPostRequest = (requestMethod == "POST");
+                    Serial.print("Request: ");
+                    Serial.print(requestMethod);
+                    Serial.print(" ");
+                    Serial.println(requestPath);
+                  }
+                }
+                
+                // Parse headers
+                if (currentLine.startsWith("Content-Length: ")) {
+                  contentLength = currentLine.substring(16).toInt();
+                  Serial.print("Content-Length: ");
+                  Serial.println(contentLength);
                 }
               }
-              
-              // Parse headers
-              if (currentLine.startsWith("Content-Length: ")) {
-                contentLength = currentLine.substring(16).toInt();
-              }
-            }
             currentLine = "";
             currentLineIsBlank = true;
           } else if (c != '\r') {
@@ -216,8 +219,11 @@ void handleCommandRequest(WiFiClient& client, String method, String body) {
   Serial.println("Handling command request");
   Serial.print("Method: ");
   Serial.println(method);
-  Serial.print("Body: ");
-  Serial.println(body);
+  Serial.print("Body length: ");
+  Serial.println(body.length());
+  Serial.print("Body: '");
+  Serial.print(body);
+  Serial.println("'");
   
   int command = -1;
   
@@ -227,12 +233,27 @@ void handleCommandRequest(WiFiClient& client, String method, String body) {
     DeserializationError error = deserializeJson(requestDoc, body);
     
     if (!error) {
-      command = requestDoc["command"];
+      command = requestDoc["command"] | -1;
       Serial.print("Parsed command: ");
       Serial.println(command);
     } else {
       Serial.print("JSON parsing failed: ");
       Serial.println(error.c_str());
+      Serial.print("Raw body: ");
+      Serial.println(body);
+      
+      // Try to extract command manually if JSON fails
+      if (body.indexOf("\"command\":") != -1) {
+        int start = body.indexOf("\"command\":") + 10;
+        int end = body.indexOf(",", start);
+        if (end == -1) end = body.indexOf("}", start);
+        if (end != -1) {
+          String cmdStr = body.substring(start, end).trim();
+          command = cmdStr.toInt();
+          Serial.print("Manually extracted command: ");
+          Serial.println(command);
+        }
+      }
     }
   } else if (method == "GET") {
     // For GET requests, parse from query string (simplified)
@@ -257,6 +278,7 @@ void handleCommandRequest(WiFiClient& client, String method, String body) {
   } else {
     doc["status"] = "error";
     doc["message"] = "Invalid command";
+    doc["received_command"] = command;
   }
   
   String response;
