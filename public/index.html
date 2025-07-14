@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Motor Control</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-microchip"></i> Arduino Motor Control</h1>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Command Input Section -->
+            <section class="command-section">
+                <h2><i class="fas fa-terminal"></i> Custom Command</h2>
+                <div class="command-input-group">
+                    <input type="number" id="customCommand" placeholder="Enter command (0-3)" min="0" max="3" class="command-input">
+                    <button id="sendCustomCommand" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+                <div class="command-help">
+                    <p><strong>Command Reference:</strong></p>
+                    <ul>
+                        <li><code>0</code> - OFF (Stop all motors)</li>
+                        <li><code>1</code> - ON (Arm motors)</li>
+                        <li><code>2</code> - M1 (Run Motor 1)</li>
+                        <li><code>3</code> - M2 (Run Motor 2)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Custom Code Section -->
+            <section class="code-section">
+                <h2><i class="fas fa-code"></i> Custom Arduino Code</h2>
+                <div class="code-editor-container">
+                    <textarea id="arduinoCode" placeholder="Enter your Arduino code here..." class="code-editor"></textarea>
+                    <div class="code-controls">
+                        <button id="uploadCodeBtn" class="btn btn-success">
+                            <i class="fas fa-upload"></i> Upload to Arduino
+                        </button>
+                        <button id="clearCodeBtn" class="btn btn-secondary">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                        <button id="loadExampleBtn" class="btn btn-info">
+                            <i class="fas fa-file-code"></i> Load Example
+                        </button>
+                    </div>
+                </div>
+                <div class="code-help">
+                    <p><strong>Code Upload Features:</strong></p>
+                    <ul>
+                        <li>Write custom Arduino code directly in the editor</li>
+                        <li>Upload code to your Arduino Uno R4 WiFi</li>
+                        <li>Load example code templates</li>
+                        <li>Syntax highlighting and error checking</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Quick Control Buttons -->
+            <section class="controls-section">
+                <h2><i class="fas fa-gamepad"></i> Quick Controls</h2>
+                <div class="control-grid">
+                    <button id="offBtn" class="control-btn off-btn">
+                        <i class="fas fa-power-off"></i>
+                        <span>OFF</span>
+                    </button>
+                    <button id="onBtn" class="control-btn on-btn">
+                        <i class="fas fa-play"></i>
+                        <span>ON</span>
+                    </button>
+                    <button id="m1Btn" class="control-btn m1-btn">
+                        <i class="fas fa-cog"></i>
+                        <span>M1</span>
+                    </button>
+                    <button id="m2Btn" class="control-btn m2-btn">
+                        <i class="fas fa-cogs"></i>
+                        <span>M2</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Status and Logs -->
+            <section class="status-section">
+                <h2><i class="fas fa-info-circle"></i> Status & Logs</h2>
+                
+                <!-- Network Scanner -->
+                <div class="network-scanner">
+                    <h3><i class="fas fa-wifi"></i> Arduino Detection</h3>
+                    <div class="scanner-controls">
+                        <button id="scanNetworkBtn" class="btn btn-info">
+                            <i class="fas fa-search"></i> Scan Network
+                        </button>
+                        <button id="testConnectionBtn" class="btn btn-info btn-sm">
+                            <i class="fas fa-wifi"></i> Test Connection
+                        </button>
+                    </div>
+                    <div class="discovered-devices" id="discoveredDevices">
+                        <div class="no-devices">
+                            <i class="fas fa-search"></i>
+                            <p>No Arduino devices discovered yet</p>
+                            <p>Click "Scan Network" to find devices</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="status-grid">
+                    <div class="status-card">
+                        <h3>Current Command</h3>
+                        <div class="status-value" id="currentCommand">0</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Last Update</h3>
+                        <div class="status-value" id="lastUpdate">Never</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Arduino IP</h3>
+                        <div class="status-value" id="arduinoIP">Not Connected</div>
+                    </div>
+                </div>
+                <div class="log-container">
+                    <h3>Command Log</h3>
+                    <div class="log-messages" id="logMessages">
+                        <div class="log-entry info">
+                            <span class="log-time">System</span>
+                            <span class="log-text">Ready to send commands</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
