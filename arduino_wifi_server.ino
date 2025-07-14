@@ -5,9 +5,20 @@
 const char* ssid = "YOUR_WIFI_SSID";        // Replace with your WiFi name
 const char* password = "YOUR_WIFI_PASSWORD"; // Replace with your WiFi password
 
-// Motor control pins
-const int MOTOR1_PIN = 2;  // Digital pin for Motor 1
-const int MOTOR2_PIN = 3;  // Digital pin for Motor 2
+// ─── PIN ASSIGNMENTS ────────────────────────────────────────────────────
+// Motor 1 (driver 1)
+#define M1_STEP_PIN  5   // PUL+
+#define M1_DIR_PIN   6   // DIR+
+#define RELAY1_PIN   8   // Relay1 IN (LOW = VMOT+ on Driver1)
+
+// Motor 2 (driver 2)
+#define M2_STEP_PIN  2   // PUL+
+#define M2_DIR_PIN   3   // DIR+
+#define RELAY2_PIN   9   // Relay2 IN (LOW = VMOT+ on Driver2)
+
+// Relay polarity for your 5 V modules:
+const int RELAY_ACTIVE   = LOW;
+const int RELAY_INACTIVE = HIGH;
 
 // Server configuration
 WiFiServer server(80);
@@ -18,19 +29,31 @@ bool motor1Running = false;
 bool motor2Running = false;
 bool motorsArmed = false;
 
+// Stepper motor control variables
+unsigned long lastStep1 = 0;
+unsigned long lastStep2 = 0;
+const unsigned long stepDelay = 1000; // microseconds between steps
+
 // JSON document for responses
 StaticJsonDocument<200> doc;
 
 void setup() {
   Serial.begin(9600);
   
-  // Initialize motor pins
-  pinMode(MOTOR1_PIN, OUTPUT);
-  pinMode(MOTOR2_PIN, OUTPUT);
+  // Initialize motor control pins
+  pinMode(M1_STEP_PIN, OUTPUT);
+  pinMode(M1_DIR_PIN, OUTPUT);
+  pinMode(RELAY1_PIN, OUTPUT);
   
-  // Start with motors off
-  digitalWrite(MOTOR1_PIN, LOW);
-  digitalWrite(MOTOR2_PIN, LOW);
+  pinMode(M2_STEP_PIN, OUTPUT);
+  pinMode(M2_DIR_PIN, OUTPUT);
+  pinMode(RELAY2_PIN, OUTPUT);
+  
+  // Start with motors off (relays inactive)
+  digitalWrite(RELAY1_PIN, RELAY_INACTIVE);
+  digitalWrite(RELAY2_PIN, RELAY_INACTIVE);
+  digitalWrite(M1_STEP_PIN, LOW);
+  digitalWrite(M2_STEP_PIN, LOW);
   
   Serial.println("Arduino Uno R4 WiFi Motor Controller");
   Serial.println("====================================");
@@ -63,6 +86,23 @@ void setup() {
 }
 
 void loop() {
+  // Handle stepper motor stepping
+  unsigned long currentMicros = micros();
+  
+  if (motor1Running && (currentMicros - lastStep1 >= stepDelay)) {
+    digitalWrite(M1_STEP_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(M1_STEP_PIN, LOW);
+    lastStep1 = currentMicros;
+  }
+  
+  if (motor2Running && (currentMicros - lastStep2 >= stepDelay)) {
+    digitalWrite(M2_STEP_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(M2_STEP_PIN, LOW);
+    lastStep2 = currentMicros;
+  }
+  
   WiFiClient client = server.available();
   
   if (client) {
@@ -153,6 +193,8 @@ void handleStatusRequest(WiFiClient& client) {
   doc["motors_armed"] = motorsArmed;
   doc["motor1_running"] = motor1Running;
   doc["motor2_running"] = motor2Running;
+  doc["relay1_active"] = (digitalRead(RELAY1_PIN) == RELAY_ACTIVE);
+  doc["relay2_active"] = (digitalRead(RELAY2_PIN) == RELAY_ACTIVE);
   doc["ip_address"] = WiFi.localIP().toString();
   doc["mac_address"] = WiFi.macAddress();
   doc["uptime"] = millis();
@@ -172,6 +214,10 @@ void handleStatusRequest(WiFiClient& client) {
 
 void handleCommandRequest(WiFiClient& client, String method, String body) {
   Serial.println("Handling command request");
+  Serial.print("Method: ");
+  Serial.println(method);
+  Serial.print("Body: ");
+  Serial.println(body);
   
   int command = -1;
   
@@ -181,14 +227,20 @@ void handleCommandRequest(WiFiClient& client, String method, String body) {
     DeserializationError error = deserializeJson(requestDoc, body);
     
     if (!error) {
-      command = requestDoc["command"] | -1;
-      Serial.print("Received command: ");
+      command = requestDoc["command"];
+      Serial.print("Parsed command: ");
       Serial.println(command);
+    } else {
+      Serial.print("JSON parsing failed: ");
+      Serial.println(error.c_str());
     }
   } else if (method == "GET") {
     // For GET requests, parse from query string (simplified)
     command = 0; // Default command for GET
   }
+  
+  Serial.print("Final command to process: ");
+  Serial.println(command);
   
   // Process command
   bool success = processCommand(command);
@@ -266,33 +318,64 @@ void handleNotFound(WiFiClient& client) {
 bool processCommand(int command) {
   Serial.print("Processing command: ");
   Serial.println(command);
+  Serial.print("Current motors armed: ");
+  Serial.println(motorsArmed);
   
   switch (command) {
     case 0: // OFF - Disarm motors
       motorsArmed = false;
       motor1Running = false;
       motor2Running = false;
-      digitalWrite(MOTOR1_PIN, LOW);
-      digitalWrite(MOTOR2_PIN, LOW);
+      // Turn off both relays
+      digitalWrite(RELAY1_PIN, RELAY_INACTIVE);
+      digitalWrite(RELAY2_PIN, RELAY_INACTIVE);
+      digitalWrite(M1_STEP_PIN, LOW);
+      digitalWrite(M2_STEP_PIN, LOW);
       Serial.println("Motors disarmed and stopped");
+      Serial.print("Relay 1 (pin ");
+      Serial.print(RELAY1_PIN);
+      Serial.println(") set to INACTIVE");
+      Serial.print("Relay 2 (pin ");
+      Serial.print(RELAY2_PIN);
+      Serial.println(") set to INACTIVE");
       return true;
       
     case 1: // ON - Arm motors
       motorsArmed = true;
       motor1Running = false;
       motor2Running = false;
-      digitalWrite(MOTOR1_PIN, LOW);
-      digitalWrite(MOTOR2_PIN, LOW);
+      // Keep relays off but motors are now armed
+      digitalWrite(RELAY1_PIN, RELAY_INACTIVE);
+      digitalWrite(RELAY2_PIN, RELAY_INACTIVE);
+      digitalWrite(M1_STEP_PIN, LOW);
+      digitalWrite(M2_STEP_PIN, LOW);
       Serial.println("Motors armed");
+      Serial.print("Relay 1 (pin ");
+      Serial.print(RELAY1_PIN);
+      Serial.println(") set to INACTIVE");
+      Serial.print("Relay 2 (pin ");
+      Serial.print(RELAY2_PIN);
+      Serial.println(") set to INACTIVE");
       return true;
       
     case 2: // M1 - Run Motor 1
       if (motorsArmed) {
         motor1Running = true;
         motor2Running = false;
-        digitalWrite(MOTOR1_PIN, HIGH);
-        digitalWrite(MOTOR2_PIN, LOW);
+        // Activate relay 1 and start stepping motor 1
+        digitalWrite(RELAY1_PIN, RELAY_ACTIVE);
+        digitalWrite(RELAY2_PIN, RELAY_INACTIVE);
+        digitalWrite(M1_DIR_PIN, HIGH); // Set direction
         Serial.println("Motor 1 running");
+        Serial.print("Relay 1 (pin ");
+        Serial.print(RELAY1_PIN);
+        Serial.println(") set to ACTIVE");
+        Serial.print("Relay 2 (pin ");
+        Serial.print(RELAY2_PIN);
+        Serial.println(") set to INACTIVE");
+        Serial.print("Motor 1 direction pin (");
+        Serial.print(M1_DIR_PIN);
+        Serial.println(") set to HIGH");
         return true;
       } else {
         Serial.println("Motors not armed - cannot run motor");
@@ -303,9 +386,20 @@ bool processCommand(int command) {
       if (motorsArmed) {
         motor1Running = false;
         motor2Running = true;
-        digitalWrite(MOTOR1_PIN, LOW);
-        digitalWrite(MOTOR2_PIN, HIGH);
+        // Activate relay 2 and start stepping motor 2
+        digitalWrite(RELAY1_PIN, RELAY_INACTIVE);
+        digitalWrite(RELAY2_PIN, RELAY_ACTIVE);
+        digitalWrite(M2_DIR_PIN, HIGH); // Set direction
         Serial.println("Motor 2 running");
+        Serial.print("Relay 1 (pin ");
+        Serial.print(RELAY1_PIN);
+        Serial.println(") set to INACTIVE");
+        Serial.print("Relay 2 (pin ");
+        Serial.print(RELAY2_PIN);
+        Serial.println(") set to ACTIVE");
+        Serial.print("Motor 2 direction pin (");
+        Serial.print(M2_DIR_PIN);
+        Serial.println(") set to HIGH");
         return true;
       } else {
         Serial.println("Motors not armed - cannot run motor");
